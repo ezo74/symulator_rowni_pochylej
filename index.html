@@ -240,10 +240,16 @@ input[type=range]:active::-webkit-slider-thumb { transform: scale(1.15); }
 .lane-head .btn { margin-left: auto; flex: none; }
 
 .controls { display: grid; gap: 14px; }
-.fricinfo { margin: -4px 0 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.fricinfo .mu { color: var(--ink); font-weight: 700; }
-.linkbtn { background: none; border: 0; padding: 0; color: var(--lane-deep); font-weight: 700; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
-.linkbtn:hover { color: var(--ink); }
+.row .lab { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.seghead { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.surfdd { display: grid; gap: 8px; }
+.ddbtn { justify-self: start; display: inline-flex; align-items: center; gap: 8px; background: var(--sheet); border: 1.5px solid var(--rule); border-radius: 999px; padding: 4px 10px 5px 12px; font-size: 13.5px; line-height: 1.2; }
+.ddbtn:hover { border-color: var(--ink-2); }
+.ddk { color: var(--ink-2); }
+.ddv { font-weight: 700; }
+.ddbtn .chev { width: 14px; height: 14px; transition: transform .15s; }
+.ddbtn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .pickers { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 3fr); gap: 6px 14px; }
 .plabel { margin: 0 0 4px; font-size: 12.5px; color: var(--ink-2); }
 .picker { display: grid; gap: 6px; }
@@ -753,7 +759,7 @@ var S = {
   phase: 'setup', pick: null, simT: 0, playing: false, speed: 0.1,
   runs: null, an: null, tEnd: 0, tFirst: 0, winner: null,
   crossed: [false, false], flash: [0, 0], shot: 0, freezeUntil: 0, startReal: 0,
-  verdictShown: false, nobody: false, scoredKey: '', hit: 0, total: 0, done: {}, fine: [false, false],
+  verdictShown: false, nobody: false, scoredKey: '', hit: 0, total: 0, done: {}, surfOpen: [[false, false], [false, false]],
   forces: true, strobe: true
 };
 function env(i) { return { alpha: rad(S.bodies[i].alpha), L: L, g: G, dt: DT }; }
@@ -799,8 +805,8 @@ function openTip(btn) {
 }
 
 // ---------- budowa kolumn i odczytów ----------
-function sliderHTML(id, key, label, sym, min, max, step, extra, wide) {
-  return '<div' + (wide ? ' class="wide"' : '') + '><div class="row"><label for="' + key + '-' + id + '" id="lab-' + key + '-' + id + '">' + label + ' <span class="math">' + sym + '</span></label><output id="' + key + '-' + id + '-out"></output></div>' +
+function sliderHTML(id, key, label, sym, min, max, step, extra, wide, tipKey) {
+  return '<div' + (wide ? ' class="wide"' : '') + '><div class="row"><span class="lab"><label for="' + key + '-' + id + '" id="lab-' + key + '-' + id + '">' + label + ' <span class="math">' + sym + '</span></label>' + (tipKey ? tip(tipKey) : '') + '</span><output id="' + key + '-' + id + '-out"></output></div>' +
     '<div class="rng"><input type="range" id="' + key + '-' + id + '" data-key="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '">' + (key === 'mus' ? '<i class="thr" id="thr-' + id + '"></i>' : key === 'mus2' ? '<i class="thr" id="thr2-' + id + '"></i>' : '') + '</div>' + (extra || '') + '</div>';
 }
 function laneHTML(i) {
@@ -814,6 +820,12 @@ function laneHTML(i) {
     return '<button class="tile" role="radio" data-block="' + bl.id + '"><canvas></canvas><span>' + bl.tile + '</span><small>bez obrotu</small></button>';
   }).join('');
   var surf = function (half) { return SURFACES.map(function (sf, n) { return '<button class="sbtn" data-surf="' + n + '" data-half="' + half + '">' + sf.name + '</button>'; }).join(''); };
+  var surfDD = function (half) {
+    return '<div class="wide surfdd"><button type="button" class="ddbtn" data-surfbtn="' + half + '" aria-expanded="false" aria-controls="chips' + half + '-' + id + '">' +
+      '<span class="ddk">gotowe nawierzchnie</span><span class="ddv" id="surfname' + half + '-' + id + '"></span>' +
+      '<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6 8 10.5 12.5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
+      '<div class="chips" id="chips' + half + '-' + id + '" hidden>' + surf(half) + '</div></div>';
+  };
   return '<header class="lane-head"><canvas class="glyph" id="glyph-' + id + '"></canvas><div><h3><span class="tag ' + id + '">' + TAG[i] + '</span><span id="name-' + id + '"></span></h3><p id="detail-' + id + '"></p></div>' +
     '<button class="btn" data-show="run" data-edit="1">Zmień</button></header>' +
     '<div class="controls" data-show="setup">' +
@@ -826,20 +838,15 @@ function laneHTML(i) {
         sliderHTML(id, 'alpha', 'kąt równi', '<i>α</i>', 5, 40, 1, '<div class="trig" id="trig-' + id + '"></div>', true) +
         sliderHTML(id, 'm', 'masa', '<i>m</i>', 0.1, 5, 0.1) +
         sliderHTML(id, 'R', 'promień', '<i>R</i>', 2, 10, 0.5) +
-        '<div class="wide surf"><span><span id="surflab-' + id + '">nawierzchnia toru</span> ' + tip('tarcie') + '</span>' + surf(1) + '</div>' +
-        '<p class="wide fricinfo" id="fric1-' + id + '"></p>' +
-        '<div class="wide sliders" id="fine1-' + id + '" hidden>' +
-          sliderHTML(id, 'mus', 'tarcie statyczne', '<i>μ</i><sub>s</sub>', 0, 1, 0.01) +
-          sliderHTML(id, 'muk', 'tarcie kinetyczne', '<i>μ</i><sub>k</sub>', 0, 1, 0.01) +
-        '</div>' +
+        sliderHTML(id, 'mus', 'tarcie statyczne', '<i>μ</i><sub>s</sub>', 0, 1, 0.01, '<div class="trig" id="thrnote-' + id + '"></div>', false, 'tarcie') +
+        sliderHTML(id, 'muk', 'tarcie kinetyczne', '<i>μ</i><sub>k</sub>', 0, 1, 0.01) +
+        surfDD(1) +
         '<label class="wide chk"><input type="checkbox" id="seg-' + id + '" data-seg="1">inna nawierzchnia od połowy toru</label>' +
         '<div class="wide sliders" id="seg2-' + id + '" hidden>' +
-          '<div class="wide surf"><span>druga połowa, 50–100 cm</span>' + surf(2) + '</div>' +
-          '<p class="wide fricinfo" id="fric2-' + id + '"></p>' +
-          '<div class="wide sliders" id="fine2-' + id + '" hidden>' +
-            sliderHTML(id, 'mus2', 'tarcie statyczne', '<i>μ</i><sub>s</sub>', 0, 1, 0.01) +
-            sliderHTML(id, 'muk2', 'tarcie kinetyczne', '<i>μ</i><sub>k</sub>', 0, 1, 0.01) +
-          '</div>' +
+          '<p class="wide seghead">druga połowa toru, 50–100 cm</p>' +
+          sliderHTML(id, 'mus2', 'tarcie statyczne', '<i>μ</i><sub>s</sub>', 0, 1, 0.01, '<div class="trig" id="thrnote2-' + id + '"></div>') +
+          sliderHTML(id, 'muk2', 'tarcie kinetyczne', '<i>μ</i><sub>k</sub>', 0, 1, 0.01) +
+          surfDD(2) +
         '</div>' +
       '</div></div>' +
     '<div class="formulas" id="fx-' + id + '"></div>';
@@ -1289,22 +1296,24 @@ function refresh() {
     $('#lab-R-' + id).innerHTML = bl ? 'podstawa × wysokość' : 'promień <span class="math"><i>R</i></span>';
     var thr = an.muCrit, te = $('#thr-' + id);
     te.style.setProperty('--at', clamp(thr, 0, 1).toFixed(4)); te.hidden = thr > 1;
-    var muTxt = function (ms, mk) { return '<span class="mu"><i class="math">μ</i><sub>s</sub> = ' + fmt(ms, 2) + ', <i class="math">μ</i><sub>k</sub> = ' + fmt(mk, 2) + '</span>'; };
-    var fineBtn = '<button type="button" class="linkbtn" data-fine="1" aria-expanded="' + (S.fine[i] ? 'true' : 'false') + '">' + (S.fine[i] ? 'schowaj suwaki' : 'ustaw dokładnie') + '</button>';
-    $('#fric1-' + id).innerHTML = muTxt(b.mus, b.muk) + (bl
+    $('#thrnote-' + id).innerHTML = bl
       ? '<span>klocek rusza poniżej <i class="math">μ</i><sub>s</sub> = tg <i class="math">α</i> = ' + fmt(thr, 2) + '</span>'
-      : '<span>poślizg poniżej <i class="math">μ</i><sub>s</sub> = ' + fmt(thr, 2) + '</span>') + fineBtn;
-    $('#fine1-' + id).hidden = !S.fine[i]; $('#fine2-' + id).hidden = !S.fine[i];
+      : '<span>poślizg poniżej <i class="math">μ</i><sub>s</sub> = ' + fmt(thr, 2) + '</span>';
+    for (var hf = 1; hf <= 2; hf++) {
+      var open = S.surfOpen[i][hf - 1], ddb = $('#lane-' + id + ' [data-surfbtn="' + hf + '"]');
+      ddb.setAttribute('aria-expanded', open ? 'true' : 'false'); $('#chips' + hf + '-' + id).hidden = !open;
+      var nm = hf === 1 ? surfName(b.mus, b.muk) : (b.seg ? surfName(b.mus2, b.muk2) : '');
+      $('#surfname' + hf + '-' + id).textContent = /^μ/.test(nm) ? 'własne wartości' : nm;
+    }
     var sb = document.querySelectorAll('#lane-' + id + ' .sbtn');
     for (var q = 0; q < sb.length; q++) { var sf = SURFACES[+sb[q].dataset.surf], h2 = sb[q].dataset.half === '2';
       sb[q].setAttribute('aria-pressed', sf.mus === (h2 ? b.mus2 : b.mus) && sf.muk === (h2 ? b.muk2 : b.muk) ? 'true' : 'false'); }
     $('#seg-' + id).checked = !!b.seg; $('#seg2-' + id).hidden = !b.seg;
-    $('#surflab-' + id).textContent = b.seg ? 'pierwsza połowa, 0–50 cm' : 'nawierzchnia toru';
     if (b.seg) {
       setRange($('#mus2-' + id), b.mus2); setRange($('#muk2-' + id), b.muk2);
       $('#mus2-' + id + '-out').textContent = fmt(b.mus2, 2); $('#muk2-' + id + '-out').textContent = fmt(b.muk2, 2);
       var t2 = $('#thr2-' + id); t2.style.setProperty('--at', clamp(thr, 0, 1).toFixed(4)); t2.hidden = thr > 1;
-      $('#fric2-' + id).innerHTML = muTxt(b.mus2, b.muk2) + (bl ? '<span>stojący klocek rusza poniżej ' + fmt(thr, 2) + ', jadący hamuje powyżej <i class="math">μ</i><sub>k</sub> = ' + fmt(thr, 2) + '</span>' : '<span>poślizg poniżej <i class="math">μ</i><sub>s</sub> = ' + fmt(thr, 2) + '</span>');
+      $('#thrnote2-' + id).innerHTML = (bl ? '<span>stojący klocek rusza poniżej ' + fmt(thr, 2) + ', jadący hamuje powyżej <i class="math">μ</i><sub>k</sub> = ' + fmt(thr, 2) + '</span>' : '<span>poślizg poniżej <i class="math">μ</i><sub>s</sub> = ' + fmt(thr, 2) + '</span>');
     }
     $('#mus-' + id + '-out').textContent = fmt(b.mus, 2);
     $('#muk-' + id + '-out').textContent = fmt(b.muk, 2);
@@ -1666,7 +1675,8 @@ function init() {
         S.chal = -1; refresh(); updateLive();
       }
       if (ev.target.closest('[data-edit]')) toSetup();
-      if (ev.target.closest('[data-fine]')) { S.fine[i] = !S.fine[i]; refresh(); var fb = $('#fric1-' + ID[i] + ' [data-fine]'); if (fb) fb.focus(); }
+      var dd = ev.target.closest('[data-surfbtn]');
+      if (dd) { var hf = +dd.dataset.surfbtn - 1; S.surfOpen[i][hf] = !S.surfOpen[i][hf]; refresh(); }
     });
   });
   $('#t-link').addEventListener('change', function (ev) {
