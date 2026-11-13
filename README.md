@@ -1,0 +1,1 @@
+# symulator_rowni_pochylej
